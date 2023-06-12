@@ -1,0 +1,18 @@
+---
+# vars file for mongo_database_duplicator
+
+#
+src_mongo_auth_database: "admin"
+src_mongo_host: "127.0.0.1"
+src_mongo_port: "27017"
+src_mongo_username: "root"
+src_mongo_password: ""
+src_mongo_database: "src"
+
+#
+dst_mongo_auth_database: "admin"
+dst_mongo_host: "127.0.0.1"
+dst_mongo_port: "27017"
+dst_mongo_username: "root"
+dst_mongo_password: ""
+dst_mongo_database: "dst"

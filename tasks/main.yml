@@ -1,0 +1,68 @@
+---
+# tasks file for mongo_database_duplicator
+- block:
+  - name: get execute id
+    ansible.builtin.setup:
+      gather_subset: 
+        - date_time
+
+  - name: set execute id
+    ansible.builtin.set_fact:
+      execute_id: "{{ ansible_date_time.iso8601_micro | hash }}"
+
+  - name: create backup persistent volume
+    community.docker.docker_volume:
+      name: "mongo_dd_{{ execute_id }}"
+
+  - name: dump database [{{ src_mongo_database }}] from [{{ src_mongo_host }}]
+    community.docker.docker_container:
+      name: mongo_dd_{{ execute_id }}_dump
+      image: "{{ mongo_execute_image }}"
+      detach: false
+      output_logs: true
+      working_dir: /backup
+      volumes:
+        - "mongo_dd_{{ execute_id }}:/backup"
+      labels:
+        mongo-database-duplicator-hash: "{{ execute_id }}"
+      command: |
+        sh -c "mongodump --gzip --authenticationDatabase={{ src_mongo_auth_database }} \
+          --host={{ src_mongo_host }} \
+          --port={{ src_mongo_port }} \
+          --username={{ src_mongo_username }} \
+          --password={{ src_mongo_password }} \
+          --db={{ src_mongo_database }} \
+          --archive=/backup/{{ src_mongo_database }}.dump.gz"
+
+  - name: restore database [{{ dst_mongo_database }}] to [{{ dst_mongo_host }}]
+    community.docker.docker_container:
+      name: mongo_dd_{{ execute_id }}_restore
+      image: "{{ mongo_execute_image }}"
+      detach: false
+      output_logs: true
+      working_dir: /backup
+      volumes:
+        - "mongo_dd_{{ execute_id }}:/backup"
+      labels:
+        mongo-database-duplicator-hash: "{{ execute_id }}"
+      command: |
+        sh -c "mongorestore --gzip --drop --authenticationDatabase={{ dst_mongo_auth_database }} \
+          --host={{ dst_mongo_host }} \
+          --port={{ dst_mongo_port }} \
+          --username={{ dst_mongo_username }} \
+          --password={{ dst_mongo_password }} \
+          --nsFrom='{{ src_mongo_database }}.*' \
+          --nsTo='{{ dst_mongo_database }}.*' \
+          --archive=/backup/{{ src_mongo_database }}.dump.gz"
+
+  always:
+  - name: cleanup container
+    community.docker.docker_prune:
+      containers: true
+      containers_filters:
+        label: "mongo-database-duplicator-hash={{ execute_id }}"
+
+  - name: delete backup persistent volume
+    community.docker.docker_volume:
+      name: "mongo_dd_{{ execute_id }}"
+      state: absent

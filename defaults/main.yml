@@ -1,0 +1,3 @@
+---
+# defaults file for mongo_database_duplicator
+mongo_execute_image: "mongo:5"
